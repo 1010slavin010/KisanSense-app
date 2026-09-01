@@ -31,38 +31,89 @@ BASE_DIR = Path(__file__).parent
 st.markdown(
     """
     <style>
-    .stApp { background-color: #F6FAF6; }
-    h1, h2, h3 { color: #1B5E20; }
-    .ks-header-title { font-size: 2.2rem; font-weight: 800; color: #1B5E20; margin-bottom: 0; }
-    .ks-header-sub { font-size: 1.1rem; color: #2E7D32; margin-top: 0; }
-    .ks-welcome { font-size: 1.4rem; font-weight: 700; color: #1B5E20; margin-top: 1rem; }
-    .ks-status-line { font-size: 1rem; color: #4E7C4E; margin-bottom: 1rem; }
-    .ks-card {
-        background: #FFFFFF;
-        border-radius: 18px;
-        padding: 22px 18px;
-        text-align: center;
-        box-shadow: 0 2px 10px rgba(27, 94, 32, 0.08);
-        border: 1px solid #E4F0E4;
+    /* ---- Earthy green/brown glassmorphic theme ("Apple glass" look) ---- */
+    .stApp {
+        background: radial-gradient(circle at 15% 0%, #DCEBD8 0%, #EDE6D8 45%, #E4D9C6 100%) fixed;
     }
-    .ks-card .ks-icon-label { font-size: 1.05rem; font-weight: 700; color: #2E7D32; }
-    .ks-card .ks-value { font-size: 2.6rem; font-weight: 800; color: #1B5E20; margin: 6px 0 2px 0; }
+    h1, h2, h3 { color: #2F4F33; }
+
+    .ks-header-title {
+        font-size: 2.3rem; font-weight: 800; color: #2F4F33; margin-bottom: 0;
+        letter-spacing: 0.2px;
+    }
+    .ks-header-sub { font-size: 1.1rem; color: #6B4F32; margin-top: 0; font-weight: 600; }
+    .ks-welcome { font-size: 1.4rem; font-weight: 700; color: #2F4F33; margin-top: 1rem; }
+    .ks-status-line { font-size: 1rem; color: #7A6A55; margin-bottom: 1rem; }
+
+    /* Frosted-glass card */
+    .ks-card {
+        background: rgba(255, 255, 255, 0.45);
+        backdrop-filter: blur(18px) saturate(160%);
+        -webkit-backdrop-filter: blur(18px) saturate(160%);
+        border-radius: 22px;
+        padding: 26px 18px;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(58, 46, 27, 0.14), inset 0 1px 0 rgba(255,255,255,0.6);
+        border: 1px solid rgba(255, 255, 255, 0.55);
+    }
+    .ks-card .ks-icon-label { font-size: 1.05rem; font-weight: 700; color: #4B7A4E; }
+    .ks-card .ks-value { font-size: 2.7rem; font-weight: 800; color: #2F4F33; margin: 6px 0 2px 0; }
     .ks-card .ks-status { font-size: 1.05rem; font-weight: 700; }
-    .ks-status-good { color: #2E7D32; }
-    .ks-status-warn { color: #F9A825; }
-    .ks-status-bad { color: #C62828; }
-    .ks-section-title { font-size: 1.4rem; font-weight: 800; color: #1B5E20; margin-top: 1.6rem; }
-    .ks-section-sub { color: #4E7C4E; margin-top: -0.4rem; margin-bottom: 0.8rem; }
+    .ks-status-good { color: #3E7D3E; }
+    .ks-status-warn { color: #A6742C; }
+    .ks-status-bad  { color: #A13B2A; }
+
+    .ks-section-title { font-size: 1.4rem; font-weight: 800; color: #2F4F33; margin-top: 1.6rem; }
+    .ks-section-sub { color: #7A6A55; margin-top: -0.4rem; margin-bottom: 0.8rem; }
+
+    /* Frosted-glass recommendation card, brown accent edge */
     .ks-reco-card {
-        background: #F1F8F1;
-        border-left: 6px solid #2E7D32;
-        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.42);
+        backdrop-filter: blur(16px) saturate(150%);
+        -webkit-backdrop-filter: blur(16px) saturate(150%);
+        border-left: 6px solid #8A6E4B;
+        border-radius: 18px;
         padding: 18px 20px;
         margin-top: 0.5rem;
+        box-shadow: 0 6px 24px rgba(58, 46, 27, 0.12);
+        border-top: 1px solid rgba(255,255,255,0.55);
+        border-right: 1px solid rgba(255,255,255,0.55);
+        border-bottom: 1px solid rgba(255,255,255,0.55);
     }
-    .ks-alert-good { background:#E8F5E9; border-radius:12px; padding:12px 16px; color:#1B5E20; font-weight:600; }
-    .ks-alert-warn { background:#FFF8E1; border-radius:12px; padding:12px 16px; color:#8D6E00; font-weight:600; margin-bottom:6px; }
-    .ks-alert-bad  { background:#FFEBEE; border-radius:12px; padding:12px 16px; color:#B71C1C; font-weight:600; margin-bottom:6px; }
+
+    .ks-alert-good {
+        background: rgba(233, 245, 230, 0.6); backdrop-filter: blur(10px);
+        border-radius: 14px; padding:12px 16px; color:#2F4F33; font-weight:600;
+        border: 1px solid rgba(255,255,255,0.5);
+    }
+    .ks-alert-warn {
+        background: rgba(250, 238, 214, 0.65); backdrop-filter: blur(10px);
+        border-radius: 14px; padding:12px 16px; color:#7A5A22; font-weight:600; margin-bottom:6px;
+        border: 1px solid rgba(255,255,255,0.5);
+    }
+    .ks-alert-bad {
+        background: rgba(249, 226, 216, 0.65); backdrop-filter: blur(10px);
+        border-radius: 14px; padding:12px 16px; color:#8C3A26; font-weight:600; margin-bottom:6px;
+        border: 1px solid rgba(255,255,255,0.5);
+    }
+
+    /* Sidebar + buttons pick up the same glass/earthy feel */
+    section[data-testid="stSidebar"] {
+        background: rgba(232, 224, 208, 0.55);
+        backdrop-filter: blur(14px);
+    }
+    div.stButton > button {
+        background: rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.6);
+        color: #2F4F33;
+        border-radius: 14px;
+        font-weight: 600;
+    }
+    div.stButton > button:hover {
+        border: 1px solid #8A6E4B;
+        color: #6B4F32;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -153,7 +204,7 @@ def render_card(icon_label: str, value: str, status: str, status_text: str):
             <div class="ks-icon-label">{icon_label}</div>
             <div class="ks-value">{value}</div>
             <div class="ks-status {css_class}">{status}</div>
-            <div style="color:#6B8E6B; font-size:0.9rem; margin-top:4px;">{status_text}</div>
+            <div style="color:#8A7A63; font-size:0.9rem; margin-top:4px;">{status_text}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -337,12 +388,12 @@ if page == "HOME":
     st.markdown(
         f"""
         <div class="ks-reco-card">
-            <div style="font-weight:800; color:#1B5E20; font-size:1.1rem;">{reco_title}</div>
-            <div style="color:#3E5C3E; margin-top:4px;">
+            <div style="font-weight:800; color:#2F4F33; font-size:1.1rem;">{reco_title}</div>
+            <div style="color:#5C4A38; margin-top:4px;">
                 Soil moisture is currently {avg_moisture:.0f}% and the temperature is {avg_temp:.0f}°C.
             </div>
-            <div style="margin-top:8px; font-weight:700; color:#2E7D32;">Recommended action:</div>
-            <div style="color:#3E5C3E;">{reco_action}</div>
+            <div style="margin-top:8px; font-weight:700; color:#6B4F32;">Recommended action:</div>
+            <div style="color:#5C4A38;">{reco_action}</div>
         </div>
         """,
         unsafe_allow_html=True,
