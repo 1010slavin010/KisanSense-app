@@ -1,41 +1,38 @@
 """
-Very lightweight stand-in for the hub's edge-AI image analysis.
+vision.py — lightweight placeholder crop-health heuristic.
 
-This does NOT replace a real trained model — it's a simple greenness-ratio
-heuristic so the Camera / AI Hub tab has something real to compute on an
-uploaded photo before a proper model is trained and flashed to the
-ESP32-S3 hub. Swap `analyze_image()` for a call to the real model's output
-(or to whatever the hub reports over LoRa/Wi-Fi) once it exists.
+Swap analyze_image() for a real trained edge-AI model (e.g. a small CNN
+flashed to the hub) once it exists. For now this uses a simple green-pixel
+ratio heuristic on the uploaded photo so the UI has something real to show.
 """
-
-from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 from PIL import Image
 
 
 @dataclass
-class ImageAnalysis:
-    green_ratio: float
+class VisionResult:
     verdict: str
+    green_ratio: float
     note: str
 
 
-def analyze_image(image: Image.Image) -> ImageAnalysis:
-    img = image.convert("RGB").resize((160, 160))
-    pixels = list(img.getdata())
-    green_pixels = sum(1 for r, g, b in pixels if g > r and g > b)
-    green_ratio = green_pixels / len(pixels)
+def analyze_image(image: Image.Image) -> VisionResult:
+    img = image.convert("RGB").resize((256, 256))
+    arr = np.asarray(img).astype("float32")
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
 
-    if green_ratio > 0.45:
-        verdict = "Healthy canopy"
-        note = "High proportion of green pixels — consistent with healthy, actively growing foliage."
-    elif green_ratio > 0.2:
-        verdict = "Moderate cover"
-        note = "Some green cover detected — could be early growth stage, partial coverage, or stress."
+    # A pixel counts as "green/healthy canopy" if green channel dominates.
+    green_mask = (g > r * 1.05) & (g > b * 1.05) & (g > 40)
+    green_ratio = float(green_mask.mean())
+
+    if green_ratio > 0.55:
+        verdict, note = "Healthy", "Canopy looks predominantly green — no obvious stress detected."
+    elif green_ratio > 0.3:
+        verdict, note = "Fair", "Some green cover, but patchiness or discoloration is visible — keep monitoring."
     else:
-        verdict = "Low green cover"
-        note = "Little green detected — check for bare soil, drought stress, disease, or a poorly framed shot."
+        verdict, note = "Needs attention", "Low green cover detected — check for stress, disease, or pests."
 
-    return ImageAnalysis(green_ratio=green_ratio, verdict=verdict, note=note)
+    return VisionResult(verdict=verdict, green_ratio=green_ratio, note=note)
