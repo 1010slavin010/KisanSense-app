@@ -1,4 +1,3 @@
-
 """
 KisanSense — farmer-friendly app (Streamlit)
 
@@ -14,13 +13,14 @@ Deploy:
 import math
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from telemetry import get_latest_readings, get_hub_status, moisture_alerts, battery_alerts
+from telemetry import get_latest_readings, get_hub_status, moisture_alerts, battery_alerts, get_weather
 from vision import analyze_image
 
 st.set_page_config(page_title="KisanSense", page_icon="🌱", layout="wide")
@@ -46,9 +46,17 @@ STRINGS = {
     "nav_myfarm": {"en": "🌾 My Farm", "ta": "🌾 என் பண்ணை", "kn": "🌾 ನನ್ನ ಜಮೀನು", "tcy": "🌾 ಎನ್ನ ಕುರ್ಲೆ", "ml": "🌾 എന്റെ കൃഷിയിടം"},
     "nav_crophealth": {"en": "🌿 Crop Health", "ta": "🌿 பயிர் ஆரோக்கியம்", "kn": "🌿 ಬೆಳೆ ಆರೋಗ್ಯ", "tcy": "🌿 ಬೆಳೆದ್ ಆರೋಗ್ಯೊ", "ml": "🌿 വിള ആരോഗ്യം"},
     "nav_irrigation": {"en": "💧 Irrigation", "ta": "💧 நீர்ப்பாசனம்", "kn": "💧 ನೀರಾವರಿ", "tcy": "💧 ನೀರ್ ಬುಡುನಿ", "ml": "💧 ജലസേചനം"},
+    "nav_weather": {"en": "☁️ Weather"},
     "nav_alerts": {"en": "⚠️ Alerts", "ta": "⚠️ எச்சரிக்கைகள்", "kn": "⚠️ ಎಚ್ಚರಿಕೆಗಳು", "tcy": "⚠️ ಎಚ್ಚರಿಕೆಲು", "ml": "⚠️ മുന്നറിയിപ്പുകൾ"},
+    "nav_devices": {"en": "📡 Devices"},
     "nav_analytics": {"en": "📈 Analytics", "ta": "📈 பகுப்பாய்வு", "kn": "📈 ವಿಶ್ಲೇಷಣೆ", "tcy": "📈 ವಿಶ್ಲೇಷಣೆ", "ml": "📈 അനലിറ്റിക്സ്"},
+    "nav_farmsetup": {"en": "🏡 Farm Setup"},
     "nav_settings": {"en": "⚙️ Settings", "ta": "⚙️ அமைப்புகள்", "kn": "⚙️ ಸೆಟ್ಟಿಂಗ್‌ಗಳು", "tcy": "⚙️ ಸೆಟ್ಟಿಂಗ್ಸ್", "ml": "⚙️ ക്രമീകരണങ്ങൾ"},
+
+    "app_tagline": {"en": "AI-powered smart farming assistant"},
+    "system_online": {"en": "🟢 System Online"},
+    "last_updated": {"en": "Last updated just now"},
+    "topbar_farm_label": {"en": "Farm"},
 
     "welcome_home": {
         "en": "Namaste! Farmer, welcome back to KisanSense.",
@@ -71,6 +79,7 @@ STRINGS = {
     "quick_pest": {"en": "🐛 How do I control pests?", "ta": "🐛 பூச்சிகளை எவ்வாறு கட்டுப்படுத்துவது?", "kn": "🐛 ಕೀಟಗಳನ್ನು ಹೇಗೆ ನಿಯಂತ್ರಿಸುವುದು?", "tcy": "🐛 ಕೀಟೊಲೆನ್ ಇಂಚ ನಿಯಂತ್ರಣ ಮಲ್ಪುನಿ?", "ml": "🐛 കീടങ്ങളെ എങ്ങനെ നിയന്ത്രിക്കാം?"},
     "quick_temp": {"en": "🌡 Is the temperature dangerous?", "ta": "🌡 வெப்பநிலை ஆபத்தானதா?", "kn": "🌡 ತಾಪಮಾನ ಅಪಾಯಕಾರಿಯೇ?", "tcy": "🌡 ಬಿಸಿ ಅಪಾಯೊಡುಂಡಾ?", "ml": "🌡 താപനില അപകടകരമാണോ?"},
     "quick_rain": {"en": "🌧 Is rain expected?", "ta": "🌧 மழை பெய்யுமா?", "kn": "🌧 ಮಳೆ ನಿರೀಕ್ಷಿಸಲಾಗಿದೆಯೇ?", "tcy": "🌧 ಮಳೆ ಬರುಗಾ?", "ml": "🌧 മഴ പ്രതീക്ഷിക്കുന്നുണ്ടോ?"},
+    "quick_today": {"en": "📅 What should I do today?"},
 
     "reco_title": {"en": "🌾 Today's Recommendation", "ta": "🌾 இன்றைய பரிந்துரை", "kn": "🌾 ಇಂದಿನ ಶಿಫಾರಸು", "tcy": "🌾 ಇನಿತ್ತಿನ ಸಲಹೆ", "ml": "🌾 ഇന്നത്തെ ശുപാർശ"},
     "reco_irrig_title": {"en": "Irrigation recommended", "ta": "நீர்ப்பாசனம் பரிந்துரைக்கப்படுகிறது", "kn": "ನೀರಾವರಿ ಶಿಫಾರಸು ಮಾಡಲಾಗಿದೆ", "tcy": "ನೀರ್ ಬುಡುನಿ ಸಲಹೆ ಕೊರ್ಪುನಿ", "ml": "ജലസേചനം ശുപാർശ ചെയ്യുന്നു"},
@@ -88,7 +97,7 @@ STRINGS = {
     },
     "reco_action_label": {"en": "Recommended action:", "ta": "பரிந்துரைக்கப்படும் நடவடிக்கை:", "kn": "ಶಿಫಾರಸು ಮಾಡಿದ ಕ್ರಮ:", "tcy": "ಸಲಹೆ ಮಲ್ತಿನ ಕ್ರಮ:", "ml": "ശുപാർശ ചെയ്യുന്ന നടപടി:"},
 
-    "alerts_title": {"en": "⚠ Farm Alerts", "ta": "⚠ பண்ணை எச்சரிக்கைகள்", "kn": "⚠ ಜಮೀನು ಎಚ್ಚರಿಕೆಗಳು", "tcy": "⚠ ಕುರ್ಲೆದ ಎಚ್ಚರಿಕೆಲು", "ml": "⚠ ഫാം മുന്നറിയിപ്പുകൾ"},
+    "alerts_title": {"en": "⚠ Farm Alerts", "ta": "⚠ பண்ணை எச்சரிக்கைகள்", "kn": "⚠ ಜಮೀನು ಎಚ್ಚರಿಕೆಗಳು", "tcy": "⚠ ಕುರ್ಲೆದ ಎಚ್ಚರಿಕೆಲು", "ml": "⚠ ഫാം മുന്നறിയിപ്പുകൾ"},
     "all_clear": {"en": "ALL CLEAR", "ta": "அனைத்தும் சரி", "kn": "ಎಲ್ಲಾ ಸರಿ", "tcy": "ಎಲ್ಲ ಸರಿ", "ml": "എല്ലാം ശരി"},
     "no_critical": {"en": "No critical alerts. All systems operational.", "ta": "முக்கியமான எச்சரிக்கைகள் இல்லை. அனைத்து அமைப்புகளும் இயங்குகின்றன.", "kn": "ಯಾವುದೇ ನಿರ್ಣಾಯಕ ಎಚ್ಚರಿಕೆಗಳಿಲ್ಲ. ಎಲ್ಲಾ ವ್ಯವಸ್ಥೆಗಳು ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತಿವೆ.", "tcy": "ಎಚ್ಚರಿಕೆದ ವಿಷಯೊಂತೂ ಇಜ್ಜಿ. ಎಲ್ಲ ವ್ಯವಸ್ಥೆ ಸರಿಯಾದುಂಡು.", "ml": "ഗുരുതരമായ മുന്നറിയിപ്പുകളില്ല. എല്ലാ സംവിധാനങ്ങളും പ്രവർത്തിക്കുന്നു."},
     "needs_attention": {"en": "NEEDS ATTENTION", "ta": "கவனம் தேவை", "kn": "ಗಮನ ಬೇಕು", "tcy": "ಗಮನ ಬೇಕ್", "ml": "ശ്രദ്ധ ആവശ്യമാണ്"},
@@ -103,6 +112,15 @@ STRINGS = {
     "ask_placeholder": {"en": "Ask KisanSense...", "ta": "KisanSense-இடம் கேளுங்கள்...", "kn": "KisanSense ಗೆ ಕೇಳಿ...", "tcy": "KisanSense ಡ್ ಕೇಣ್ಲೆ...", "ml": "KisanSense-നോട് ചോദിക്കൂ..."},
     "offline_caption": {"en": "ℹ️ Offline mode — simple answers from live farm data. Add an API key secret for fuller answers.", "ta": "ℹ️ ஆஃப்லைன் முறை — நேரடி பண்ணை தரவிலிருந்து எளிய பதில்கள். முழுமையான பதில்களுக்கு API key சேர்க்கவும்.", "kn": "ℹ️ ಆಫ್‌ಲೈನ್ ಮೋಡ್ — ಲೈವ್ ಜಮೀನು ಡೇಟಾದಿಂದ ಸರಳ ಉತ್ತರಗಳು. ಪೂರ್ಣ ಉತ್ತರಗಳಿಗಾಗಿ API key ಸೇರಿಸಿ.", "tcy": "ℹ️ ಆಫ್‌ಲೈನ್ ಮೋಡ್ — ಲೈವ್ ಕುರ್ಲೆದ ಡೇಟಾಡ್ದ್ ಸರಳ ಉತ್ತರೊಲು. ಪೂರ್ಣ ಉತ್ತರೊಗು API key ಸೇರಿಸ್ಲೆ.", "ml": "ℹ️ ഓഫ്‌ലൈൻ മോഡ് — തത്സമയ കൃഷിയിടം ഡാറ്റയിൽ നിന്നുള്ള ലളിതമായ ഉത്തരങ്ങൾ. കൂടുതൽ പൂർണ്ണമായ ഉത്തരങ്ങൾക്ക് API key ചേർക്കുക."},
 
+    "copilot_title": {"en": "🤖 KisanSense Copilot"},
+    "copilot_things_to_know": {"en": "Things you should know:"},
+    "copilot_action_label": {"en": "Recommended action:"},
+    "greeting_morning": {"en": "Good morning!"},
+    "greeting_afternoon": {"en": "Good afternoon!"},
+    "greeting_evening": {"en": "Good evening!"},
+    "copilot_healthy": {"en": "Your farm is looking healthy."},
+    "copilot_attention": {"en": "Your farm needs a little attention."},
+
     "myfarm_welcome": {"en": "My Farm", "ta": "என் பண்ணை", "kn": "ನನ್ನ ಜಮೀನು", "tcy": "ಎನ್ನ ಕುರ್ಲೆ", "ml": "എന്റെ കൃഷിയിടം"},
     "myfarm_caption": {"en": "Status of every sensor node and the main hub.", "ta": "ஒவ்வொரு சென்சார் நோட் மற்றும் முதன்மை மையத்தின் நிலை.", "kn": "ಪ್ರತಿ ಸೆನ್ಸಾರ್ ನೋಡ್ ಮತ್ತು ಮುಖ್ಯ ಹಬ್‌ನ ಸ್ಥಿತಿ.", "tcy": "ಪ್ರತಿಯೊಂಜಿ ಸೆನ್ಸಾರ್ ನೋಡ್ ಬೊಕ್ಕ ಮುಖ್ಯ ಹಬ್‌ದ ಸ್ಥಿತಿ.", "ml": "ഓരോ സെൻസർ നോഡിന്റെയും പ്രധാന ഹബിന്റെയും അവസ്ഥ."},
     "main_hub": {"en": "Main hub", "ta": "முதன்மை மையம்", "kn": "ಮುಖ್ಯ ಹಬ್", "tcy": "ಮುಖ್ಯ ಹಬ್", "ml": "പ്രധാന ഹബ്"},
@@ -114,20 +132,66 @@ STRINGS = {
     "verdict": {"en": "Verdict", "ta": "முடிவு", "kn": "ತೀರ್ಪು", "tcy": "ತೀರ್ಪ್", "ml": "വിധി"},
     "green_cover": {"en": "Green cover", "ta": "பசுமை மறைப்பு", "kn": "ಹಸಿರು ಹೊದಿಕೆ", "tcy": "ಪಚ್ಚೆ ಮುಚ್ಚಾವುನಿ", "ml": "ഹരിത ആവരണം"},
     "last_hub_inference": {"en": "Last hub inference:", "ta": "கடைசி மைய முடிவு:", "kn": "ಕೊನೆಯ ಹಬ್ ಅನುಮಾನ:", "tcy": "ಕಡೆತ್ತ ಹಬ್ ಅನುಮಾನ:", "ml": "അവസാന ഹബ് നിഗമനം:"},
+    "crop_select_label": {"en": "Crop"},
+    "growth_stage_label": {"en": "Growth stage"},
+    "overall_health_label": {"en": "Overall health"},
+    "crophealth_checklist_moisture": {"en": "Soil moisture"},
+    "crophealth_checklist_temp": {"en": "Temperature"},
+    "crophealth_checklist_humidity": {"en": "Humidity"},
+    "crophealth_checklist_pest": {"en": "Pest risk"},
+    "crophealth_ai_reco": {"en": "AI recommendation"},
 
     "irrigation_welcome": {"en": "Irrigation", "ta": "நீர்ப்பாசனம்", "kn": "ನೀರಾವರಿ", "tcy": "ನೀರ್ ಬುಡುನಿ", "ml": "ജലസേചനം"},
     "irrigation_caption": {"en": "Per-node moisture and watering guidance.", "ta": "ஒவ்வொரு நோட் ஈரப்பதம் மற்றும் நீர்ப்பாசன வழிகாட்டுதல்.", "kn": "ಪ್ರತಿ-ನೋಡ್ ತೇವಾಂಶ ಮತ್ತು ನೀರಾವರಿ ಮಾರ್ಗದರ್ಶನ.", "tcy": "ಪ್ರತಿಯೊಂಜಿ ನೋಡ್‌ದ ತೇವ ಬೊಕ್ಕ ನೀರ್ ಬುಡುನಿದ ಮಾರ್ಗದರ್ಶನ.", "ml": "ഓരോ നോഡിന്റെയും ഈർപ്പവും നന മാർഗ്ഗനിർദ്ദേശവും."},
     "irrigate_soon": {"en": "Irrigate soon", "ta": "விரைவில் நீர்ப்பாசனம் செய்யவும்", "kn": "ಬೇಗ ನೀರಾವರಿ ಮಾಡಿ", "tcy": "ಬೇಗ ನೀರ್ ಬುಡ್ಲೆ", "ml": "ഉടൻ നനയ്ക്കുക"},
     "reduce_watering": {"en": "Reduce watering", "ta": "நீர்ப்பாசனத்தை குறைக்கவும்", "kn": "ನೀರಾವರಿ ಕಡಿಮೆ ಮಾಡಿ", "tcy": "ನೀರ್ ಕಮ್ಮಿ ಮಲ್ಪುಲೆ", "ml": "നന കുറയ്ക്കുക"},
     "no_action": {"en": "No action needed", "ta": "நடவடிக்கை தேவையில்லை", "kn": "ಯಾವುದೇ ಕ್ರಮ ಅಗತ್ಯವಿಲ್ಲ", "tcy": "ಕ್ರಮ ಬೋಡಂದ್", "ml": "നടപടി വേണ്ട"},
+    "auto_irrigation_title": {"en": "Automatic Irrigation"},
+    "auto_irrigation_toggle": {"en": "Enable automatic irrigation"},
+    "irrigation_threshold_label": {"en": "Irrigation threshold (%)"},
+    "pump_status_label": {"en": "Pump"},
+    "pump_on": {"en": "ON"},
+    "pump_off": {"en": "OFF"},
+    "pump_turn_on": {"en": "Turn ON"},
+    "pump_turn_off": {"en": "Turn OFF"},
+    "pump_auto_note": {"en": "Automatic mode is on — the pump will switch on when average soil moisture drops below the threshold."},
 
     "alerts_welcome": {"en": "Farm Alerts", "ta": "பண்ணை எச்சரிக்கைகள்", "kn": "ಜಮೀನು ಎಚ್ಚರಿಕೆಗಳು", "tcy": "ಕುರ್ಲೆದ ಎಚ್ಚರಿಕೆಲು", "ml": "ഫാം മുന്നറിയിപ്പുകൾ"},
+
+    "weather_welcome": {"en": "Weather"},
+    "weather_caption": {"en": "Simulated local forecast until a live weather API is connected."},
+    "weather_temp": {"en": "🌡️ Temperature"},
+    "weather_humidity": {"en": "💧 Humidity"},
+    "weather_rain": {"en": "🌧️ Rain probability"},
+    "weather_wind": {"en": "💨 Wind"},
+    "weather_ai_title": {"en": "🌧️ AI Weather Recommendation"},
+
+    "devices_welcome": {"en": "Devices"},
+    "devices_caption": {"en": "Connectivity status for every sensor node, the hub, and the irrigation relay."},
+    "devices_hub_name": {"en": "KisanSense Hub"},
+    "devices_last_received": {"en": "Last data received:"},
+    "devices_online": {"en": "🟢 Connected"},
+    "devices_offline": {"en": "🔴 Offline"},
+    "devices_col_device": {"en": "Device"},
+    "devices_col_status": {"en": "Status"},
 
     "analytics_welcome": {"en": "Farm Analytics", "ta": "பண்ணை பகுப்பாய்வு", "kn": "ಜಮೀನು ವಿಶ್ಲೇಷಣೆ", "tcy": "ಕುರ್ಲೆದ ವಿಶ್ಲೇಷಣೆ", "ml": "ഫാം അനലിറ്റിക്സ്"},
     "analytics_caption": {"en": "Historical trends and detailed sensor data.", "ta": "வரலாற்று போக்குகள் மற்றும் விரிவான சென்சார் தரவு.", "kn": "ಐತಿಹಾಸಿಕ ಪ್ರವೃತ್ತಿಗಳು ಮತ್ತು ವಿವರವಾದ ಸೆನ್ಸಾರ್ ಡೇಟಾ.", "tcy": "ಇತಿಹಾಸೊದ ಪ್ರವೃತ್ತಿಲು ಬೊಕ್ಕ ವಿವರೊದ ಸೆನ್ಸಾರ್ ಡೇಟಾ.", "ml": "ചരിത്രപരമായ പ്രവണതകളും വിശദമായ സെൻസർ ഡാറ്റയും."},
     "trends_title": {"en": "Trends", "ta": "போக்குகள்", "kn": "ಪ್ರವೃತ್ತಿಗಳು", "tcy": "ಪ್ರವೃತ್ತಿಲು", "ml": "ട്രെൻഡുകൾ"},
     "raw_readings_title": {"en": "Raw node readings", "ta": "மூல நோட் அளவீடுகள்", "kn": "ಕಚ್ಚಾ ನೋಡ್ ವಾಚನಗಳು", "tcy": "ಕಚ್ಚಾ ನೋಡ್ ರೀಡಿಂಗ್ಸ್", "ml": "അസംസ്‌കൃത നോഡ് റീഡിംഗുകൾ"},
     "auto_refresh": {"en": "Auto-refresh every 5s", "ta": "ஒவ்வொரு 5 வினாடிக்கும் தானாக புதுப்பிக்கவும்", "kn": "ಪ್ರತಿ 5 ಸೆಕೆಂಡಿಗೆ ಸ್ವಯಂ-ರಿಫ್ರೆಶ್", "tcy": "ಪ್ರತಿ 5 ಸೆಕೆಂಡ್‌ಗ್ ಸ್ವಯಂ-ರಿಫ್ರೆಶ್", "ml": "ഓരോ 5 സെക്കൻഡിലും ഓട്ടോ-റിഫ്രഷ്"},
+
+    "farmsetup_welcome": {"en": "My Farm Setup"},
+    "farmsetup_caption": {"en": "Tell KisanSense about your farm so recommendations (and the AI assistant) are tailored to you."},
+    "farm_name_label": {"en": "Farm name"},
+    "farm_crop_label": {"en": "Crop"},
+    "farm_area_label": {"en": "Area (acres)"},
+    "farm_soil_label": {"en": "Soil type"},
+    "farm_irrigation_label": {"en": "Irrigation type"},
+    "farm_location_label": {"en": "Location"},
+    "farm_stage_label": {"en": "Growth stage"},
+    "farmsetup_save_btn": {"en": "Save farm profile"},
+    "farmsetup_saved": {"en": "Farm profile saved."},
 
     "settings_welcome": {"en": "Settings", "ta": "அமைப்புகள்", "kn": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು", "tcy": "ಸೆಟ್ಟಿಂಗ್ಸ್", "ml": "ക്രമീകരണങ്ങൾ"},
     "chatbot_section": {"en": "Chatbot", "ta": "அரட்டைப்பெட்டி", "kn": "ಚಾಟ್‌ಬಾಟ್", "tcy": "ಚಾಟ್‌ಬಾಟ್", "ml": "ചാറ്റ്ബോട്ട്"},
@@ -213,6 +277,8 @@ st.markdown(
     .ks-welcome {{ font-size: 1.6rem; font-weight: 800; color: {T['text_primary']}; margin: 0.4rem 0 0.2rem 0; }}
     .ks-status-line {{ font-size: 0.95rem; color: {T['text_muted']}; margin-bottom: 0.6rem; }}
     .ks-section-title {{ font-size: 1.05rem; font-weight: 700; color: {T['text_secondary']}; margin: 1.3rem 0 0.5rem 0; letter-spacing: 0.3px; text-transform: uppercase; }}
+    .ks-topbar {{ display:flex; align-items:center; gap:14px; font-size:0.85rem; color:{T['text_muted']}; margin-bottom: 0.4rem; }}
+    .ks-topbar .dot-good {{ color: {T['good']}; font-weight: 700; }}
 
     .ks-card {{
         background: {T['card_bg']};
@@ -231,6 +297,7 @@ st.markdown(
     .ks-badge-bad  {{ background: {T['bad_bg']};  color: {T['bad']};  padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; display: inline-block; }}
 
     .ks-alert-row {{ color: {T['text_secondary']}; font-size: 0.9rem; margin-top: 8px; }}
+    .ks-copilot-bullet {{ color: {T['text_primary']}; font-size: 0.95rem; margin: 4px 0; }}
 
     /* Pill-style quick-question buttons */
     div.stButton > button {{
@@ -292,6 +359,35 @@ with top_right:
         st.rerun()
 
 # ==========================================================================
+# Farm profile (used by Crop Health + Farm Setup + AI system prompt)
+# ==========================================================================
+if "farm_profile" not in st.session_state:
+    st.session_state.farm_profile = {
+        "name": "My Farm",
+        "crop": "Tomato",
+        "area_acres": 2.0,
+        "soil_type": "Loamy",
+        "irrigation_type": "Drip",
+        "location": "Bengaluru",
+        "growth_stage": "Flowering",
+    }
+
+CROP_OPTIONS = ["Tomato", "Rice", "Wheat", "Maize", "Cotton", "Sugarcane", "Banana", "Groundnut", "Chili", "Other"]
+SOIL_OPTIONS = ["Loamy", "Clay", "Sandy", "Black (Regur)", "Red", "Alluvial"]
+IRRIGATION_OPTIONS = ["Drip", "Sprinkler", "Flood/Furrow", "Manual"]
+GROWTH_STAGE_OPTIONS = ["Seedling", "Vegetative", "Flowering", "Fruiting", "Maturity/Harvest"]
+
+# ==========================================================================
+# Irrigation control state
+# ==========================================================================
+if "auto_irrigation" not in st.session_state:
+    st.session_state.auto_irrigation = False
+if "irrigation_threshold" not in st.session_state:
+    st.session_state.irrigation_threshold = 40
+if "pump_on" not in st.session_state:
+    st.session_state.pump_on = False
+
+# ==========================================================================
 # Navigation
 # ==========================================================================
 NAV_PAGES = {
@@ -299,12 +395,16 @@ NAV_PAGES = {
     "MY FARM": tr("nav_myfarm"),
     "CROP HEALTH": tr("nav_crophealth"),
     "IRRIGATION": tr("nav_irrigation"),
+    "WEATHER": tr("nav_weather"),
     "ALERTS": tr("nav_alerts"),
+    "DEVICES": tr("nav_devices"),
     "ANALYTICS": tr("nav_analytics"),
+    "FARM SETUP": tr("nav_farmsetup"),
     "SETTINGS": tr("nav_settings"),
 }
 
 st.sidebar.markdown('<div class="ks-header-title">🌱 KisanSense</div>', unsafe_allow_html=True)
+st.sidebar.caption(tr("app_tagline"))
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
 page_label = st.sidebar.radio(
     "Navigate", list(NAV_PAGES.values()), index=0, label_visibility="collapsed"
@@ -329,19 +429,21 @@ st.sidebar.caption(
 
 
 def get_crop_health(avg_moisture: float, avg_temp: float, hub_status):
-    """Simple crop-health rollup until a trained model feeds this directly."""
+    """Simple crop-health rollup until a trained model feeds this directly.
+    Returns (label, note, score_pct)."""
     if avg_moisture < 20 or avg_temp > 38:
-        return "Poor", "Crops may be under stress — check the field soon."
+        return "Poor", "Crops may be under stress — check the field soon.", 45
     if avg_moisture < 30 or avg_temp > 34:
-        return "Fair", "Crops are okay but conditions are trending unfavorable."
-    return "Good", "Your crops are currently healthy."
+        return "Fair", "Crops are okay but conditions are trending unfavorable.", 68
+    return "Good", "Your crops are currently healthy.", 90
 
 
 readings = get_latest_readings()
 hub = get_hub_status()
+weather = get_weather()
 avg_moisture = sum(r.soil_moisture_pct for r in readings) / len(readings)
 avg_temp = sum(r.temperature_c for r in readings) / len(readings)
-crop_health, crop_health_note = get_crop_health(avg_moisture, avg_temp, hub)
+crop_health, crop_health_note, crop_health_score = get_crop_health(avg_moisture, avg_temp, hub)
 # Simple simulated light-level reading (no light sensor in telemetry.py yet)
 light_level = max(0, min(100, 55 + 40 * math.sin(time.time() / 25)))
 
@@ -351,6 +453,10 @@ st.session_state.history.append(
     {"t": time.time(), "Soil moisture": avg_moisture, "Air temperature": avg_temp, "Light level": light_level}
 )
 st.session_state.history = st.session_state.history[-120:]
+
+# Automatic irrigation logic — simulated pump control based on average soil moisture
+if st.session_state.auto_irrigation:
+    st.session_state.pump_on = avg_moisture < st.session_state.irrigation_threshold
 
 
 def moisture_status(value: float) -> str:
@@ -427,6 +533,7 @@ live_context = "\n".join(
     f"({'charging' if r.solar_charging else 'idle'})"
     for r in readings
 )
+farm = st.session_state.farm_profile
 LANGUAGE_NAMES_FOR_PROMPT = {
     "en": "English",
     "ta": "Tamil",
@@ -441,20 +548,41 @@ below when relevant. Keep answers short and actionable. Respond in
 {LANGUAGE_NAMES_FOR_PROMPT.get(st.session_state.lang, "English")}, regardless of the
 language used in this system prompt.
 
+Farm profile:
+- Farm name: {farm['name']}
+- Crop: {farm['crop']} (growth stage: {farm['growth_stage']})
+- Area: {farm['area_acres']} acres
+- Soil type: {farm['soil_type']}
+- Irrigation type: {farm['irrigation_type']}
+- Location: {farm['location']}
+
 Current field data:
 {live_context}
-Crop health rollup: {crop_health} — {crop_health_note}
+Crop health rollup: {crop_health} ({crop_health_score}%) — {crop_health_note}
+Weather: {weather['condition']}, {weather['temp_c']}°C, {weather['rain_chance_pct']}% rain chance, wind {weather['wind_kmh']} km/h
+Irrigation pump is currently: {'ON' if st.session_state.pump_on else 'OFF'} (automatic mode: {'on' if st.session_state.auto_irrigation else 'off'})
 """
 
 
 def fallback_answer(question: str) -> str:
     q = question.lower()
+    if "today" in q and ("do" in q or "should" in q):
+        tips = []
+        if avg_moisture < 30:
+            tips.append(f"irrigate — soil moisture is low at {avg_moisture:.0f}%")
+        if avg_temp > 36:
+            tips.append("watch for heat stress during peak sun hours")
+        if weather["rain_chance_pct"] > 55:
+            tips.append("rain is likely later, so you can delay any extra watering")
+        if not tips:
+            tips.append("no urgent action — continue normal monitoring")
+        return "Today: " + "; ".join(tips) + "."
     if "irrigat" in q or "water" in q:
         if avg_moisture < 30:
             return f"Soil moisture is {avg_moisture:.0f}%, which is low — irrigation is recommended today."
         return f"Soil moisture is {avg_moisture:.0f}%, which is healthy — no irrigation needed right now."
     if "crop" in q or "health" in q:
-        return f"Crop health looks **{crop_health}**. {crop_health_note}"
+        return f"Crop health looks **{crop_health}** ({crop_health_score}%). {crop_health_note}"
     if "temp" in q or "heat" in q:
         return f"Current average temperature is {avg_temp:.1f}°C ({temp_status(avg_temp)})."
     if "pest" in q or "bug" in q or "insect" in q:
@@ -464,9 +592,13 @@ def fallback_answer(question: str) -> str:
             "pest, add an API key so I can give more tailored advice."
         )
     if "rain" in q or "weather" in q:
-        return "I don't have a live weather feed connected yet — check your local forecast before deciding on irrigation."
+        return (
+            f"Current conditions: {weather['condition']}, {weather['temp_c']}°C with a "
+            f"{weather['rain_chance_pct']:.0f}% chance of rain. "
+            + ("Consider delaying irrigation." if weather["rain_chance_pct"] > 55 else "No rain-related concerns right now.")
+        )
     return (
-        "I can answer from live farm data (soil moisture, temperature, crop health) "
+        "I can answer from live farm data (soil moisture, temperature, crop health, weather) "
         "in this simple mode, or give fuller answers if an ANTHROPIC_API_KEY / "
         "OPENAI_API_KEY secret is configured."
     )
@@ -524,12 +656,23 @@ QUICK_QUESTIONS = [
     ("quick_pest", "How do I control pests?"),
     ("quick_temp", "Is the temperature dangerous?"),
     ("quick_rain", "Is rain expected?"),
+    ("quick_today", "What should I do today?"),
 ]
 
 # ==========================================================================
 # HOME
 # ==========================================================================
 if page == "HOME":
+    st.markdown(
+        f"""<div class="ks-topbar">
+            <span class="dot-good">{tr('system_online')}</span>
+            <span>•</span>
+            <span>{tr('last_updated')}</span>
+            <span>•</span>
+            <span>{tr('topbar_farm_label')}: {st.session_state.farm_profile['name']}</span>
+        </div>""",
+        unsafe_allow_html=True,
+    )
     st.markdown(f'<div class="ks-welcome">{tr("welcome_home")}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="ks-status-line">{tr("status_line")}</div>', unsafe_allow_html=True)
 
@@ -541,6 +684,41 @@ if page == "HOME":
             # Send the underlying English intent to the chatbot for reliable matching,
             # while the button itself is shown in the chosen language.
             handle_question(qtext_en)
+
+    # --- AI Farm Copilot -----------------------------------------------------
+    hour = datetime.now().hour
+    if hour < 12:
+        greeting = tr("greeting_morning")
+    elif hour < 17:
+        greeting = tr("greeting_afternoon")
+    else:
+        greeting = tr("greeting_evening")
+
+    copilot_points = []
+    if avg_moisture < 30:
+        copilot_points.append(f"💧 Soil moisture is low ({avg_moisture:.0f}%).")
+    else:
+        copilot_points.append(f"🌱 Soil moisture is {moisture_status(avg_moisture).lower()} ({avg_moisture:.0f}%).")
+    if avg_temp > 34:
+        copilot_points.append(f"🌡️ Temperature is trending high ({avg_temp:.0f}°C).")
+    else:
+        copilot_points.append(f"🌡️ Temperature is normal ({avg_temp:.0f}°C).")
+    if weather["rain_chance_pct"] > 55:
+        copilot_points.append(f"🌧️ Rain is likely later ({weather['rain_chance_pct']:.0f}% chance).")
+    copilot_ok = avg_moisture >= 30 and avg_temp <= 34 and crop_health != "Poor"
+    copilot_summary = tr("copilot_healthy") if copilot_ok else tr("copilot_attention")
+    st.markdown(f'<div class="ks-section-title">{tr("copilot_title")}</div>', unsafe_allow_html=True)
+    bullets_html = "".join(f'<div class="ks-copilot-bullet">{p}</div>' for p in copilot_points[:3])
+    st.markdown(
+        f"""
+        <div class="ks-card">
+            <div style="font-weight:700;">{greeting} {copilot_summary}</div>
+            <div style="margin-top:10px; color:{T['text_secondary']}; font-size:0.85rem;">{tr('copilot_things_to_know')}</div>
+            {bullets_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # --- Today's Recommendation + Farm Alerts, side by side ----------------
     col_reco, col_alert = st.columns(2)
@@ -659,6 +837,55 @@ elif page == "CROP HEALTH":
     st.markdown(f'<div class="ks-welcome">{tr("crophealth_welcome")}</div>', unsafe_allow_html=True)
     st.caption(tr("crophealth_caption"))
 
+    farm = st.session_state.farm_profile
+    csel1, csel2 = st.columns(2)
+    with csel1:
+        crop_idx = CROP_OPTIONS.index(farm["crop"]) if farm["crop"] in CROP_OPTIONS else len(CROP_OPTIONS) - 1
+        chosen_crop = st.selectbox(tr("crop_select_label"), CROP_OPTIONS, index=crop_idx)
+    with csel2:
+        stage_idx = GROWTH_STAGE_OPTIONS.index(farm["growth_stage"]) if farm["growth_stage"] in GROWTH_STAGE_OPTIONS else 0
+        chosen_stage = st.selectbox(tr("growth_stage_label"), GROWTH_STAGE_OPTIONS, index=stage_idx)
+    if chosen_crop != farm["crop"] or chosen_stage != farm["growth_stage"]:
+        st.session_state.farm_profile["crop"] = chosen_crop
+        st.session_state.farm_profile["growth_stage"] = chosen_stage
+
+    # Overall health rollup for the selected crop
+    health_status_class = STATUS_CLASS.get(crop_health, "ks-status-good")
+    humidity_avg = sum(r.humidity_pct for r in readings) / len(readings)
+    pest_risk = "Low" if avg_temp < 34 and humidity_avg < 80 else "Elevated"
+    st.markdown(
+        f"""
+        <div class="ks-card">
+            <div class="ks-card-title">{tr("overall_health_label")}</div>
+            <div class="{health_status_class}" style="font-size:1.8rem; font-weight:800;">{crop_health} — {crop_health_score}%</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.progress(crop_health_score / 100)
+
+    ch1, ch2, ch3, ch4 = st.columns(4)
+    with ch1:
+        st.markdown(f"**{tr('crophealth_checklist_moisture')}**")
+        st.markdown("✅" if moisture_status(avg_moisture) == "Good" else "⚠️")
+    with ch2:
+        st.markdown(f"**{tr('crophealth_checklist_temp')}**")
+        st.markdown("✅" if temp_status(avg_temp) == "Normal" else "⚠️")
+    with ch3:
+        st.markdown(f"**{tr('crophealth_checklist_humidity')}**")
+        st.markdown("✅" if humidity_avg < 80 else "⚠️")
+    with ch4:
+        st.markdown(f"**{tr('crophealth_checklist_pest')}**")
+        st.markdown("🟢 Low" if pest_risk == "Low" else "🟠 Elevated")
+
+    st.markdown(f'<div class="ks-section-title">{tr("crophealth_ai_reco")}</div>', unsafe_allow_html=True)
+    st.info(
+        f"Your {chosen_crop.lower()} crop ({chosen_stage.lower()} stage) is currently in **{crop_health.lower()}** "
+        f"condition. {crop_health_note} Keep soil moisture near 40–60% and watch humidity for fungal disease risk "
+        f"if it stays above 80%."
+    )
+
+    st.markdown("---")
     uploaded = st.file_uploader(tr("upload_photo"), type=["jpg", "jpeg", "png"])
     if uploaded:
         image = Image.open(uploaded)
@@ -686,6 +913,58 @@ elif page == "IRRIGATION":
         st.markdown(f"**{r.node_id}** — {r.soil_moisture_pct:.0f}% ({status}) — {action}")
         st.progress(min(r.soil_moisture_pct / 100, 1.0))
 
+    st.markdown(f'<div class="ks-section-title">{tr("auto_irrigation_title")}</div>', unsafe_allow_html=True)
+    auto_col, pump_col = st.columns(2)
+    with auto_col:
+        auto_on = st.toggle(tr("auto_irrigation_toggle"), value=st.session_state.auto_irrigation)
+        if auto_on != st.session_state.auto_irrigation:
+            st.session_state.auto_irrigation = auto_on
+            st.rerun()
+        st.session_state.irrigation_threshold = st.slider(
+            tr("irrigation_threshold_label"), min_value=10, max_value=70,
+            value=st.session_state.irrigation_threshold,
+        )
+        if st.session_state.auto_irrigation:
+            st.caption(tr("pump_auto_note"))
+    with pump_col:
+        pump_label = tr("pump_on") if st.session_state.pump_on else tr("pump_off")
+        pump_status = "Good" if st.session_state.pump_on else "Normal"
+        render_card(f"🚰 {tr('pump_status_label')}", pump_label, pump_status)
+        if not st.session_state.auto_irrigation:
+            if st.session_state.pump_on:
+                if st.button(tr("pump_turn_off"), use_container_width=True):
+                    st.session_state.pump_on = False
+                    st.rerun()
+            else:
+                if st.button(tr("pump_turn_on"), use_container_width=True):
+                    st.session_state.pump_on = True
+                    st.rerun()
+
+# ==========================================================================
+# WEATHER
+# ==========================================================================
+elif page == "WEATHER":
+    st.markdown(f'<div class="ks-welcome">{tr("weather_welcome")}</div>', unsafe_allow_html=True)
+    st.caption(tr("weather_caption"))
+
+    w1, w2, w3, w4 = st.columns(4)
+    with w1:
+        render_card(tr("weather_temp"), f"{weather['temp_c']}°C", "Normal" if weather["temp_c"] < 34 else "High")
+    with w2:
+        render_card(tr("weather_humidity"), f"{weather['humidity_pct']:.0f}%", "Good")
+    with w3:
+        render_card(tr("weather_rain"), f"{weather['rain_chance_pct']:.0f}%", "Good" if weather["rain_chance_pct"] < 55 else "High")
+    with w4:
+        render_card(tr("weather_wind"), f"{weather['wind_kmh']} km/h", "Good")
+
+    st.markdown(f'<div class="ks-section-title">{tr("weather_ai_title")}</div>', unsafe_allow_html=True)
+    if weather["rain_chance_pct"] > 55:
+        st.info("Rain is expected later today. Consider delaying irrigation to avoid unnecessary water usage.")
+    elif avg_moisture < 30:
+        st.warning("No significant rain expected and soil moisture is already low — irrigation is recommended.")
+    else:
+        st.success("Conditions look stable. No weather-driven irrigation changes needed right now.")
+
 # ==========================================================================
 # ALERTS
 # ==========================================================================
@@ -700,6 +979,24 @@ elif page == "ALERTS":
         st.markdown(f'<div class="ks-card" style="margin-bottom:8px;">🟡 {a}</div>', unsafe_allow_html=True)
     for a in b_alerts:
         st.markdown(f'<div class="ks-card" style="margin-bottom:8px;">🔴 {a}</div>', unsafe_allow_html=True)
+
+# ==========================================================================
+# DEVICES — connectivity view
+# ==========================================================================
+elif page == "DEVICES":
+    st.markdown(f'<div class="ks-welcome">{tr("devices_welcome")}</div>', unsafe_allow_html=True)
+    st.caption(tr("devices_caption"))
+
+    st.markdown(f"**{tr('devices_hub_name')}** — {tr('devices_online') if hub.camera_online else tr('devices_offline')}")
+    st.caption(f"{tr('devices_last_received')} {datetime.now().strftime('%H:%M:%S')}")
+
+    device_rows = []
+    for r in readings:
+        device_rows.append({tr("devices_col_device"): f"{r.node_id} — Soil sensor", tr("devices_col_status"): "🟢 Online"})
+        device_rows.append({tr("devices_col_device"): f"{r.node_id} — Temp/Humidity sensor", tr("devices_col_status"): "🟢 Online"})
+    device_rows.append({tr("devices_col_device"): "Irrigation relay", tr("devices_col_status"): "🟢 Online"})
+    device_rows.append({tr("devices_col_device"): "Hub ESP32", tr("devices_col_status"): "🟢 Online" if hub.camera_online else "🔴 Offline"})
+    st.dataframe(pd.DataFrame(device_rows), use_container_width=True, hide_index=True)
 
 # ==========================================================================
 # ANALYTICS — all the charts/history live here now
@@ -732,6 +1029,37 @@ elif page == "ANALYTICS":
     if st.checkbox(tr("auto_refresh")):
         time.sleep(5)
         st.rerun()
+
+# ==========================================================================
+# FARM SETUP
+# ==========================================================================
+elif page == "FARM SETUP":
+    st.markdown(f'<div class="ks-welcome">{tr("farmsetup_welcome")}</div>', unsafe_allow_html=True)
+    st.caption(tr("farmsetup_caption"))
+
+    farm = st.session_state.farm_profile
+    with st.form("farm_setup_form"):
+        f1, f2 = st.columns(2)
+        with f1:
+            name = st.text_input(tr("farm_name_label"), value=farm["name"])
+            crop = st.selectbox(tr("farm_crop_label"), CROP_OPTIONS,
+                                 index=CROP_OPTIONS.index(farm["crop"]) if farm["crop"] in CROP_OPTIONS else len(CROP_OPTIONS) - 1)
+            area = st.number_input(tr("farm_area_label"), min_value=0.0, value=float(farm["area_acres"]), step=0.5)
+            soil = st.selectbox(tr("farm_soil_label"), SOIL_OPTIONS,
+                                 index=SOIL_OPTIONS.index(farm["soil_type"]) if farm["soil_type"] in SOIL_OPTIONS else 0)
+        with f2:
+            irrigation = st.selectbox(tr("farm_irrigation_label"), IRRIGATION_OPTIONS,
+                                       index=IRRIGATION_OPTIONS.index(farm["irrigation_type"]) if farm["irrigation_type"] in IRRIGATION_OPTIONS else 0)
+            location = st.text_input(tr("farm_location_label"), value=farm["location"])
+            stage = st.selectbox(tr("farm_stage_label"), GROWTH_STAGE_OPTIONS,
+                                  index=GROWTH_STAGE_OPTIONS.index(farm["growth_stage"]) if farm["growth_stage"] in GROWTH_STAGE_OPTIONS else 0)
+        submitted = st.form_submit_button(tr("farmsetup_save_btn"))
+        if submitted:
+            st.session_state.farm_profile = {
+                "name": name, "crop": crop, "area_acres": area, "soil_type": soil,
+                "irrigation_type": irrigation, "location": location, "growth_stage": stage,
+            }
+            st.success(tr("farmsetup_saved"))
 
 # ==========================================================================
 # SETTINGS
