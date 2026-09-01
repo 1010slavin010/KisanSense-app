@@ -10,6 +10,7 @@ Deploy:
     app's Settings -> Secrets for full chatbot answers — see README.md.
 """
 
+import math
 import os
 import time
 from pathlib import Path
@@ -26,94 +27,112 @@ st.set_page_config(page_title="KisanSense", page_icon="🌱", layout="wide")
 BASE_DIR = Path(__file__).parent
 
 # ==========================================================================
-# Global style — light background, green brand color, rounded cards
+# Theme (Dark / Light)
 # ==========================================================================
+if "theme" not in st.session_state:
+    st.session_state.theme = "Dark"
+
+THEMES = {
+    "Dark": {
+        "app_bg": "linear-gradient(160deg, #10181C 0%, #131E22 60%, #0F1720 100%)",
+        "sidebar_bg": "#0D1417",
+        "text_primary": "#EAF3EE",
+        "text_secondary": "#9FB3AC",
+        "text_muted": "#748883",
+        "card_bg": "rgba(255,255,255,0.045)",
+        "card_border": "rgba(255,255,255,0.08)",
+        "accent": "#4FD1A5",
+        "accent_soft": "rgba(79,209,165,0.15)",
+        "pill_bg": "rgba(255,255,255,0.06)",
+        "pill_border": "rgba(255,255,255,0.1)",
+        "good": "#4FD1A5",
+        "warn": "#F0B94D",
+        "bad": "#F0705E",
+        "good_bg": "rgba(79,209,165,0.12)",
+        "warn_bg": "rgba(240,185,77,0.12)",
+        "bad_bg": "rgba(240,112,94,0.12)",
+        "chart_line": "#4FD1A5",
+    },
+    "Light": {
+        "app_bg": "linear-gradient(160deg, #F5FAF6 0%, #EFF6F0 60%, #F7F9F4 100%)",
+        "sidebar_bg": "#FFFFFF",
+        "text_primary": "#1E3324",
+        "text_secondary": "#4B6B57",
+        "text_muted": "#7C927F",
+        "card_bg": "rgba(255,255,255,0.85)",
+        "card_border": "rgba(30,51,36,0.08)",
+        "accent": "#2F9E6E",
+        "accent_soft": "rgba(47,158,110,0.12)",
+        "pill_bg": "rgba(47,158,110,0.07)",
+        "pill_border": "rgba(47,158,110,0.18)",
+        "good": "#2F9E6E",
+        "warn": "#B9821F",
+        "bad": "#C24A38",
+        "good_bg": "rgba(47,158,110,0.1)",
+        "warn_bg": "rgba(185,130,31,0.1)",
+        "bad_bg": "rgba(194,74,56,0.1)",
+        "chart_line": "#2F9E6E",
+    },
+}
+
+T = THEMES[st.session_state.theme]
+
 st.markdown(
-    """
+    f"""
     <style>
-    /* ---- Earthy green/brown glassmorphic theme ("Apple glass" look) ---- */
-    .stApp {
-        background: radial-gradient(circle at 15% 0%, #DCEBD8 0%, #EDE6D8 45%, #E4D9C6 100%) fixed;
-    }
-    h1, h2, h3 { color: #2F4F33; }
+    .stApp {{ background: {T['app_bg']}; }}
+    section[data-testid="stSidebar"] {{ background: {T['sidebar_bg']}; border-right: 1px solid {T['card_border']}; }}
+    h1, h2, h3, p, span, label, .stMarkdown {{ color: {T['text_primary']}; }}
 
-    .ks-header-title {
-        font-size: 2.3rem; font-weight: 800; color: #2F4F33; margin-bottom: 0;
-        letter-spacing: 0.2px;
-    }
-    .ks-header-sub { font-size: 1.1rem; color: #6B4F32; margin-top: 0; font-weight: 600; }
-    .ks-welcome { font-size: 1.4rem; font-weight: 700; color: #2F4F33; margin-top: 1rem; }
-    .ks-status-line { font-size: 1rem; color: #7A6A55; margin-bottom: 1rem; }
+    .ks-header-title {{ font-size: 1.5rem; font-weight: 800; color: {T['text_primary']}; margin-bottom: 0; }}
+    .ks-welcome {{ font-size: 1.6rem; font-weight: 800; color: {T['text_primary']}; margin: 0.4rem 0 0.2rem 0; }}
+    .ks-status-line {{ font-size: 0.95rem; color: {T['text_muted']}; margin-bottom: 0.6rem; }}
+    .ks-section-title {{ font-size: 1.05rem; font-weight: 700; color: {T['text_secondary']}; margin: 1.3rem 0 0.5rem 0; letter-spacing: 0.3px; text-transform: uppercase; }}
 
-    /* Frosted-glass card */
-    .ks-card {
-        background: rgba(255, 255, 255, 0.45);
-        backdrop-filter: blur(18px) saturate(160%);
-        -webkit-backdrop-filter: blur(18px) saturate(160%);
-        border-radius: 22px;
-        padding: 26px 18px;
-        text-align: center;
-        box-shadow: 0 8px 32px rgba(58, 46, 27, 0.14), inset 0 1px 0 rgba(255,255,255,0.6);
-        border: 1px solid rgba(255, 255, 255, 0.55);
-    }
-    .ks-card .ks-icon-label { font-size: 1.05rem; font-weight: 700; color: #4B7A4E; }
-    .ks-card .ks-value { font-size: 2.7rem; font-weight: 800; color: #2F4F33; margin: 6px 0 2px 0; }
-    .ks-card .ks-status { font-size: 1.05rem; font-weight: 700; }
-    .ks-status-good { color: #3E7D3E; }
-    .ks-status-warn { color: #A6742C; }
-    .ks-status-bad  { color: #A13B2A; }
-
-    .ks-section-title { font-size: 1.4rem; font-weight: 800; color: #2F4F33; margin-top: 1.6rem; }
-    .ks-section-sub { color: #7A6A55; margin-top: -0.4rem; margin-bottom: 0.8rem; }
-
-    /* Frosted-glass recommendation card, brown accent edge */
-    .ks-reco-card {
-        background: rgba(255, 255, 255, 0.42);
-        backdrop-filter: blur(16px) saturate(150%);
-        -webkit-backdrop-filter: blur(16px) saturate(150%);
-        border-left: 6px solid #8A6E4B;
-        border-radius: 18px;
+    .ks-card {{
+        background: {T['card_bg']};
+        border: 1px solid {T['card_border']};
+        border-radius: 16px;
         padding: 18px 20px;
-        margin-top: 0.5rem;
-        box-shadow: 0 6px 24px rgba(58, 46, 27, 0.12);
-        border-top: 1px solid rgba(255,255,255,0.55);
-        border-right: 1px solid rgba(255,255,255,0.55);
-        border-bottom: 1px solid rgba(255,255,255,0.55);
-    }
+    }}
+    .ks-card-title {{ font-size: 0.95rem; font-weight: 700; color: {T['text_secondary']}; margin-bottom: 8px; }}
+    .ks-value {{ font-size: 2.1rem; font-weight: 800; color: {T['text_primary']}; }}
+    .ks-status-good {{ color: {T['good']}; font-weight: 700; }}
+    .ks-status-warn {{ color: {T['warn']}; font-weight: 700; }}
+    .ks-status-bad  {{ color: {T['bad']}; font-weight: 700; }}
 
-    .ks-alert-good {
-        background: rgba(233, 245, 230, 0.6); backdrop-filter: blur(10px);
-        border-radius: 14px; padding:12px 16px; color:#2F4F33; font-weight:600;
-        border: 1px solid rgba(255,255,255,0.5);
-    }
-    .ks-alert-warn {
-        background: rgba(250, 238, 214, 0.65); backdrop-filter: blur(10px);
-        border-radius: 14px; padding:12px 16px; color:#7A5A22; font-weight:600; margin-bottom:6px;
-        border: 1px solid rgba(255,255,255,0.5);
-    }
-    .ks-alert-bad {
-        background: rgba(249, 226, 216, 0.65); backdrop-filter: blur(10px);
-        border-radius: 14px; padding:12px 16px; color:#8C3A26; font-weight:600; margin-bottom:6px;
-        border: 1px solid rgba(255,255,255,0.5);
-    }
+    .ks-badge-good {{ background: {T['good_bg']}; color: {T['good']}; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; display: inline-block; }}
+    .ks-badge-warn {{ background: {T['warn_bg']}; color: {T['warn']}; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; display: inline-block; }}
+    .ks-badge-bad  {{ background: {T['bad_bg']};  color: {T['bad']};  padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; display: inline-block; }}
 
-    /* Sidebar + buttons pick up the same glass/earthy feel */
-    section[data-testid="stSidebar"] {
-        background: rgba(232, 224, 208, 0.55);
-        backdrop-filter: blur(14px);
-    }
-    div.stButton > button {
-        background: rgba(255, 255, 255, 0.5);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.6);
-        color: #2F4F33;
-        border-radius: 14px;
+    .ks-alert-row {{ color: {T['text_secondary']}; font-size: 0.9rem; margin-top: 8px; }}
+
+    /* Pill-style quick-question buttons */
+    div.stButton > button {{
+        background: {T['pill_bg']};
+        border: 1px solid {T['pill_border']};
+        color: {T['text_primary']};
+        border-radius: 999px;
         font-weight: 600;
-    }
-    div.stButton > button:hover {
-        border: 1px solid #8A6E4B;
-        color: #6B4F32;
-    }
+        font-size: 0.85rem;
+        padding: 6px 14px;
+    }}
+    div.stButton > button:hover {{
+        border-color: {T['accent']};
+        color: {T['accent']};
+    }}
+
+    /* Sidebar nav radio -> look like a vertical list of nav items */
+    section[data-testid="stSidebar"] div[role="radiogroup"] label {{
+        padding: 8px 10px;
+        border-radius: 10px;
+        margin-bottom: 2px;
+        color: {T['text_secondary']};
+    }}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {{
+        background: {T['accent_soft']};
+        color: {T['accent']};
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -122,11 +141,30 @@ st.markdown(
 # ==========================================================================
 # Navigation
 # ==========================================================================
-NAV_PAGES = ["HOME", "MY FARM", "CROP HEALTH", "IRRIGATION", "ALERTS", "ANALYTICS", "SETTINGS"]
+NAV_PAGES = {
+    "HOME": "🏠 Home",
+    "MY FARM": "🌾 My Farm",
+    "CROP HEALTH": "🌿 Crop Health",
+    "IRRIGATION": "💧 Irrigation",
+    "ALERTS": "⚠️ Alerts",
+    "ANALYTICS": "📈 Analytics",
+    "SETTINGS": "⚙️ Settings",
+}
 
-st.sidebar.markdown("### 🌱 KisanSense")
-page = st.sidebar.radio("Navigate", NAV_PAGES, index=0, label_visibility="collapsed")
+st.sidebar.markdown('<div class="ks-header-title">🌱 KisanSense</div>', unsafe_allow_html=True)
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+page_label = st.sidebar.radio(
+    "Navigate", list(NAV_PAGES.values()), index=0, label_visibility="collapsed"
+)
+page = [k for k, v in NAV_PAGES.items() if v == page_label][0]
+
 st.sidebar.markdown("---")
+theme_choice = st.sidebar.radio("Theme", ["Dark", "Light"], horizontal=True,
+                                 index=0 if st.session_state.theme == "Dark" else 1)
+if theme_choice != st.session_state.theme:
+    st.session_state.theme = theme_choice
+    st.rerun()
+
 st.sidebar.caption(
     "Sensor values are simulated for now (no hardware connected yet). "
     "Swap `telemetry.py` for the real LoRa/Wi-Fi feed once the hub is built."
@@ -135,17 +173,6 @@ st.sidebar.caption(
 # ==========================================================================
 # Live data (shared across pages)
 # ==========================================================================
-
-
-def get_soil_moisture():
-    """Farm-wide soil moisture — average across all sensor nodes."""
-    readings = get_latest_readings()
-    return sum(r.soil_moisture_pct for r in readings) / len(readings), readings
-
-
-def get_temperature():
-    readings = get_latest_readings()
-    return sum(r.temperature_c for r in readings) / len(readings), readings
 
 
 def get_crop_health(avg_moisture: float, avg_temp: float, hub_status):
@@ -162,11 +189,13 @@ hub = get_hub_status()
 avg_moisture = sum(r.soil_moisture_pct for r in readings) / len(readings)
 avg_temp = sum(r.temperature_c for r in readings) / len(readings)
 crop_health, crop_health_note = get_crop_health(avg_moisture, avg_temp, hub)
+# Simple simulated light-level reading (no light sensor in telemetry.py yet)
+light_level = max(0, min(100, 55 + 40 * math.sin(time.time() / 25)))
 
 if "history" not in st.session_state:
     st.session_state.history = []
 st.session_state.history.append(
-    {"t": time.time(), **{r.node_id: r.soil_moisture_pct for r in readings}}
+    {"t": time.time(), "Soil moisture": avg_moisture, "Air temperature": avg_temp, "Light level": light_level}
 )
 st.session_state.history = st.session_state.history[-120:]
 
@@ -196,19 +225,30 @@ STATUS_CLASS = {
 }
 
 
-def render_card(icon_label: str, value: str, status: str, status_text: str):
+def render_card(icon_label: str, value: str, status: str):
     css_class = STATUS_CLASS.get(status, "ks-status-good")
     st.markdown(
         f"""
         <div class="ks-card">
-            <div class="ks-icon-label">{icon_label}</div>
+            <div class="ks-card-title">{icon_label}</div>
             <div class="ks-value">{value}</div>
-            <div class="ks-status {css_class}">{status}</div>
-            <div style="color:#8A7A63; font-size:0.9rem; margin-top:4px;">{status_text}</div>
+            <div class="{css_class}">{status}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def mini_chart(label: str, icon: str, column: str, value_fmt: str):
+    df = pd.DataFrame(st.session_state.history)
+    latest = df[column].iloc[-1]
+    st.markdown(
+        f"""<div class="ks-card"><div class="ks-card-title">{icon} {label}</div>
+        <div class="ks-value" style="font-size:1.6rem;">{value_fmt.format(latest)}</div></div>""",
+        unsafe_allow_html=True,
+    )
+    chart_df = df.set_index(pd.to_datetime(df["t"], unit="s"))[[column]]
+    st.line_chart(chart_df, height=110, use_container_width=True)
 
 
 # ==========================================================================
@@ -328,102 +368,99 @@ QUICK_QUESTIONS = [
 # HOME
 # ==========================================================================
 if page == "HOME":
-    st.markdown('<div class="ks-header-title">🌱 KisanSense</div>', unsafe_allow_html=True)
-    st.markdown('<div class="ks-header-sub">Smart Farming Assistant</div>', unsafe_allow_html=True)
-    st.markdown('<div class="ks-welcome">Good Morning, Farmer 🌱</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ks-welcome">Namaste! Farmer, welcome back to KisanSense.</div>', unsafe_allow_html=True)
     st.markdown('<div class="ks-status-line">Your farm is being monitored in real time.</div>', unsafe_allow_html=True)
 
-    # --- Main sensor cards -------------------------------------------------
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        m_status = moisture_status(avg_moisture)
-        render_card("💧 Soil Moisture", f"{avg_moisture:.0f}%", m_status, "")
-    with col2:
-        t_status = temp_status(avg_temp)
-        render_card("🌡 Temperature", f"{avg_temp:.0f}°C", t_status, "")
-    with col3:
-        render_card("🌱 Crop Health", crop_health, crop_health, crop_health_note)
-
-    # --- Chatbot -------------------------------------------------------------
-    st.markdown('<div class="ks-section-title">🤖 Ask KisanSense</div>', unsafe_allow_html=True)
-    st.markdown('<div class="ks-section-sub">Your AI Farming Assistant</div>', unsafe_allow_html=True)
-
-    if not st.session_state.chat_messages:
-        st.info(
-            "Namaste! 👋 I'm your KisanSense farming assistant. Ask me about irrigation, "
-            "crop health, pests, diseases, fertilizer, weather, or anything about your farm."
-        )
-
+    # --- Insights: quick-question pills ------------------------------------
+    st.markdown('<div class="ks-section-title">Insights</div>', unsafe_allow_html=True)
     qcols = st.columns(len(QUICK_QUESTIONS))
-    for qcol, qtext in zip(qcols, QUICK_QUESTIONS):
-        if qcol.button(qtext, use_container_width=True):
+    for i, (qcol, qtext) in enumerate(zip(qcols, QUICK_QUESTIONS)):
+        if qcol.button(qtext, use_container_width=True, key=f"quick_{i}"):
             handle_question(qtext.split(" ", 1)[1])
 
-    for msg in st.session_state.chat_messages:
+    # --- Today's Recommendation + Farm Alerts, side by side ----------------
+    col_reco, col_alert = st.columns(2)
+
+    if avg_moisture < 30:
+        reco_title, reco_action, reco_status = "Irrigation recommended", "Check irrigation for this field in the morning.", "warn"
+    elif avg_temp > 36:
+        reco_title, reco_action, reco_status = "Watch for heat stress", "Consider shade netting or extra watering during peak heat hours.", "warn"
+    else:
+        reco_title, reco_action, reco_status = "No action needed", "Looks good — continue normal monitoring.", "good"
+
+    reco_icon = "✅" if reco_status == "good" else "🟡"
+    with col_reco:
+        st.markdown(
+            f"""
+            <div class="ks-card">
+                <div class="ks-card-title">🌾 Today's Recommendation</div>
+                <div style="font-weight:700; margin-top:4px;">{reco_icon} {reco_title}</div>
+                <div class="ks-alert-row">Soil moisture {avg_moisture:.0f}%, Temp {avg_temp:.0f}°C</div>
+                <div class="ks-alert-row"><b>Recommended action:</b> {reco_action}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    m_alerts = moisture_alerts(readings)
+    b_alerts = battery_alerts(readings)
+    all_alerts = m_alerts + b_alerts + (["Possible crop stress detected"] if crop_health == "Poor" else [])
+    with col_alert:
+        if not all_alerts:
+            st.markdown(
+                """
+                <div class="ks-card">
+                    <div class="ks-card-title">⚠ Farm Alerts</div>
+                    <span class="ks-badge-good">ALL CLEAR</span>
+                    <div class="ks-alert-row">No critical alerts. All systems operational.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            rows = "".join(f'<div class="ks-alert-row">🔴 {a}</div>' for a in all_alerts)
+            st.markdown(
+                f"""
+                <div class="ks-card">
+                    <div class="ks-card-title">⚠ Farm Alerts</div>
+                    <span class="ks-badge-warn">NEEDS ATTENTION</span>
+                    {rows}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # --- Live Data Dashboard: mini sparklines --------------------------------
+    st.markdown('<div class="ks-section-title">Live Data Dashboard</div>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        mini_chart("Soil moisture", "💧", "Soil moisture", "{:.0f}%")
+    with c2:
+        mini_chart("Air temperature", "🌡", "Air temperature", "{:.0f}°C")
+    with c3:
+        mini_chart("Light levels", "☀️", "Light level", "{:.0f}%")
+
+    # --- Ask KisanSense --------------------------------------------------------
+    st.markdown('<div class="ks-section-title">💬 Ask KisanSense</div>', unsafe_allow_html=True)
+    if not st.session_state.chat_messages:
+        st.caption("Namaste! 👋 Ask about irrigation, crop health, pests, weather, or anything about your farm.")
+
+    for msg in st.session_state.chat_messages[-6:]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    typed_question = st.chat_input("Ask about your farm...")
+    typed_question = st.chat_input("Ask KisanSense...")
     if typed_question:
         handle_question(typed_question)
 
     if not ANTHROPIC_KEY and not OPENAI_KEY:
-        st.caption(
-            "ℹ️ Offline mode — simple answers from live farm data. Add an API key "
-            "secret for fuller conversational answers."
-        )
-
-    # --- Today's recommendation ----------------------------------------------
-    st.markdown('<div class="ks-section-title">🌾 Today\'s Recommendation</div>', unsafe_allow_html=True)
-    if avg_moisture < 30:
-        reco_title = "Irrigation recommended"
-        reco_action = "Check irrigation for this field in the morning."
-    elif avg_temp > 36:
-        reco_title = "Watch for heat stress"
-        reco_action = "Consider shade netting or extra watering during peak heat hours."
-    else:
-        reco_title = "No action needed"
-        reco_action = "Conditions look good — continue normal monitoring."
-
-    st.markdown(
-        f"""
-        <div class="ks-reco-card">
-            <div style="font-weight:800; color:#2F4F33; font-size:1.1rem;">{reco_title}</div>
-            <div style="color:#5C4A38; margin-top:4px;">
-                Soil moisture is currently {avg_moisture:.0f}% and the temperature is {avg_temp:.0f}°C.
-            </div>
-            <div style="margin-top:8px; font-weight:700; color:#6B4F32;">Recommended action:</div>
-            <div style="color:#5C4A38;">{reco_action}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    with st.expander("View Recommendation"):
-        st.write(
-            f"- Farm-wide soil moisture: **{avg_moisture:.0f}%** ({moisture_status(avg_moisture)})\n"
-            f"- Farm-wide temperature: **{avg_temp:.0f}°C** ({temp_status(avg_temp)})\n"
-            f"- Crop health rollup: **{crop_health}**\n\n{reco_action}"
-        )
-
-    # --- Alerts ----------------------------------------------------------------
-    st.markdown('<div class="ks-section-title">⚠ Farm Alerts</div>', unsafe_allow_html=True)
-    m_alerts = moisture_alerts(readings)
-    b_alerts = battery_alerts(readings)
-    if not m_alerts and not b_alerts and crop_health == "Good":
-        st.markdown('<div class="ks-alert-good">🟢 No critical alerts</div>', unsafe_allow_html=True)
-    else:
-        for a in m_alerts:
-            st.markdown(f'<div class="ks-alert-warn">🟡 {a}</div>', unsafe_allow_html=True)
-        for a in b_alerts:
-            st.markdown(f'<div class="ks-alert-bad">🔴 {a}</div>', unsafe_allow_html=True)
-        if crop_health == "Poor":
-            st.markdown('<div class="ks-alert-bad">🔴 Possible crop stress detected</div>', unsafe_allow_html=True)
+        st.caption("ℹ️ Offline mode — simple answers from live farm data. Add an API key secret for fuller answers.")
 
 # ==========================================================================
 # MY FARM — node & power status
 # ==========================================================================
 elif page == "MY FARM":
-    st.title("My Farm")
+    st.markdown('<div class="ks-welcome">My Farm</div>', unsafe_allow_html=True)
     st.caption("Status of every sensor node and the main hub.")
 
     table = pd.DataFrame(
@@ -442,17 +479,20 @@ elif page == "MY FARM":
     )
     st.dataframe(table, use_container_width=True, hide_index=True)
 
-    st.markdown("### Main hub")
+    st.markdown('<div class="ks-section-title">Main hub</div>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
-    c1.metric("Hub battery", f"{hub.battery_pct:.0f}%")
-    c2.metric("Solar", "Charging" if hub.solar_charging else "Idle")
-    c3.metric("Camera", "Online" if hub.camera_online else "Offline")
+    with c1:
+        render_card("🔋 Hub battery", f"{hub.battery_pct:.0f}%", "Good" if hub.battery_pct > 30 else "Low")
+    with c2:
+        render_card("☀️ Solar", "Charging" if hub.solar_charging else "Idle", "Good" if hub.solar_charging else "Fair")
+    with c3:
+        render_card("📷 Camera", "Online" if hub.camera_online else "Offline", "Good" if hub.camera_online else "Poor")
 
 # ==========================================================================
 # CROP HEALTH — camera / edge-AI panel
 # ==========================================================================
 elif page == "CROP HEALTH":
-    st.title("Crop Health")
+    st.markdown('<div class="ks-welcome">Crop Health</div>', unsafe_allow_html=True)
     st.caption(
         "Upload a field photo to check canopy health. This uses a lightweight "
         "placeholder heuristic until the real edge-AI model is trained and "
@@ -477,7 +517,7 @@ elif page == "CROP HEALTH":
 # IRRIGATION
 # ==========================================================================
 elif page == "IRRIGATION":
-    st.title("Irrigation")
+    st.markdown('<div class="ks-welcome">Irrigation</div>', unsafe_allow_html=True)
     st.caption("Per-node moisture and watering guidance.")
 
     for r in readings:
@@ -490,29 +530,30 @@ elif page == "IRRIGATION":
 # ALERTS
 # ==========================================================================
 elif page == "ALERTS":
-    st.title("Farm Alerts")
+    st.markdown('<div class="ks-welcome">Farm Alerts</div>', unsafe_allow_html=True)
     m_alerts = moisture_alerts(readings)
     b_alerts = battery_alerts(readings)
     if not m_alerts and not b_alerts:
-        st.markdown('<div class="ks-alert-good">🟢 No critical alerts</div>', unsafe_allow_html=True)
+        st.markdown('<span class="ks-badge-good">ALL CLEAR</span>', unsafe_allow_html=True)
+        st.caption("No critical alerts. All systems operational.")
     for a in m_alerts:
-        st.markdown(f'<div class="ks-alert-warn">🟡 {a}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="ks-card" style="margin-bottom:8px;">🟡 {a}</div>', unsafe_allow_html=True)
     for a in b_alerts:
-        st.markdown(f'<div class="ks-alert-bad">🔴 {a}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="ks-card" style="margin-bottom:8px;">🔴 {a}</div>', unsafe_allow_html=True)
 
 # ==========================================================================
 # ANALYTICS — all the charts/history live here now
 # ==========================================================================
 elif page == "ANALYTICS":
-    st.title("Farm Analytics")
+    st.markdown('<div class="ks-welcome">Farm Analytics</div>', unsafe_allow_html=True)
     st.caption("Historical trends and detailed sensor data.")
 
     df = pd.DataFrame(st.session_state.history).set_index("t")
     df.index = pd.to_datetime(df.index, unit="s")
-    st.markdown("### Soil moisture over time")
+    st.markdown('<div class="ks-section-title">Trends</div>', unsafe_allow_html=True)
     st.line_chart(df)
 
-    st.markdown("### Raw node readings")
+    st.markdown('<div class="ks-section-title">Raw node readings</div>', unsafe_allow_html=True)
     table = pd.DataFrame(
         [
             {
@@ -536,14 +577,17 @@ elif page == "ANALYTICS":
 # SETTINGS
 # ==========================================================================
 elif page == "SETTINGS":
-    st.title("Settings")
-    st.markdown("### Chatbot")
+    st.markdown('<div class="ks-welcome">Settings</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ks-section-title">Chatbot</div>', unsafe_allow_html=True)
     st.write(f"Anthropic key configured: {'✅' if ANTHROPIC_KEY else '❌'}")
     st.write(f"OpenAI key configured: {'✅' if OPENAI_KEY else '❌'}")
     st.caption("Add ANTHROPIC_API_KEY or OPENAI_API_KEY under Settings → Secrets on Streamlit Cloud.")
 
-    st.markdown("### Data source")
+    st.markdown('<div class="ks-section-title">Data source</div>', unsafe_allow_html=True)
     st.write("Sensor readings: **Simulated** (telemetry.py) — no hardware connected yet.")
+
+    st.markdown('<div class="ks-section-title">Appearance</div>', unsafe_allow_html=True)
+    st.write(f"Current theme: **{st.session_state.theme}** (toggle in the sidebar)")
 
     if st.button("Clear chat history"):
         st.session_state.chat_messages = []
